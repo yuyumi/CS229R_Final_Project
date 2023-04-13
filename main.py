@@ -1,3 +1,4 @@
+import math
 import os
 from datetime import datetime
 
@@ -13,14 +14,16 @@ bits_per_gene = 1 + 2 * bits_per_gate  # 1 bit for if the gene can be Baldwin Ef
 bits_per_genome = bits_per_gene * gates + 4
 
 crossover_p = 0.5
-mutation_p = 0.7 / bits_per_genome
+mutation_p = 0.5 / bits_per_genome
 
-population_size = 1000
-graduation_size = 300  # number of organisms that move to the next generation
+population_size = 5000
+graduation_size = 1500  # number of organisms that move to the next generation
 
-generations = 10000
-log_step = 1
+generations = 100000
+log_step = 10
 goal_change_t = 20
+
+exp_factor = 30
 
 change_goal = True
 
@@ -51,10 +54,10 @@ bin_funcs = [
     lambda x, y: x | y,
 ]
 
-
-def generate_random_goal() -> Function:
-    # Choose f, g, and h randomly from bin_Funcs
-    return Function(random.choice(bin_funcs), random.choice(bin_funcs), random.choice(bin_funcs))
+goals = [
+    Function(bin_funcs[0], bin_funcs[0], bin_funcs[1]),
+    Function(bin_funcs[0], bin_funcs[0], bin_funcs[2])
+]
 
 
 def generate_random_genome() -> str:
@@ -137,7 +140,7 @@ def select_elite(pop_fitness, exp_weight=1):
     pop, fitnesses = zip(*pop_fitness)
     fitnesses = np.array(fitnesses)
 
-    exp_fitnesses = fitnesses ** exp_weight
+    exp_fitnesses = math.e ** (exp_weight * fitnesses)
     cum_exp_fitnesses = np.cumsum(exp_fitnesses)
 
     selected = []
@@ -147,10 +150,6 @@ def select_elite(pop_fitness, exp_weight=1):
         selected.append(pop[idx])
 
     return selected
-
-
-init_pop = [generate_random_genome() for _ in range(population_size)]
-init_goal = generate_random_goal()
 
 
 def crossover(parent1, parent2):
@@ -170,6 +169,9 @@ def mutate(genome: str):
     ])
 
 
+init_pop = [generate_random_genome() for _ in range(population_size)]
+init_goal = random.randint(0, 1)
+
 pop = [*init_pop]
 goal = init_goal
 
@@ -183,12 +185,13 @@ f = open(log_file, 'w+')
 
 for g in range(generations):
     # anotate the population with their fitness
-    pop_fitness = [(genome, fitness(genome, goal)) for genome in pop]
+    pop_fitness = [(genome, fitness(genome, goals[goal])) for genome in pop]
 
-    avg_fitness = sum(fitness(genome, goal) for genome, _ in pop_fitness) / len(pop_fitness)
+    avg_fitness = sum(fitness for genome, fitness in pop_fitness) / len(pop_fitness)
 
     if (g + 1) % log_step == 0:
-        f.write(f'[Generation {g + 1}] Fitness: {avg_fitness}\n')
+        f.write(f'[Generation {g + 1}] Fitness: {avg_fitness} Goal: {goal}\n')
+        print(f'[Generation {g + 1}] Fitness: {avg_fitness} Goal: {goal}')
 
     selected_pop = select_elite(pop_fitness, exp_weight=4)
 
@@ -211,4 +214,4 @@ for g in range(generations):
     pop = offspring
 
     if change_goal and (g + 1) % goal_change_t == 0:
-        goal = generate_random_goal()
+        goal = random.randint(0, 1)

@@ -4,7 +4,7 @@ from datetime import datetime
 
 import numpy as np
 import random
-from typing import Callable
+from typing import Callable, List, Optional
 
 random.seed(0)
 
@@ -64,11 +64,19 @@ def generate_random_genome() -> str:
     return ''.join(random.choice('01') for _ in range(bits_per_genome))
 
 
-def split_genome_into_genes(genome: str) -> list[str]:
+def split_genome_into_genes(genome: str) -> list[list[str]]:
     # gates are `bits_per_gene` bits each
     # output is 4 bits
-    return [[genome[i], genome[i + 1:i + bits_per_gate + 1], genome[i + bits_per_gate + 1:i + bits_per_gene]] for i in
-            range(0, len(genome) - 4, bits_per_gene)] + [[genome[-4:]]]
+    return [
+        [genome[i], genome[i + 1:i + bits_per_gate + 1], genome[i + bits_per_gate + 1:i + bits_per_gene]]
+        for i in range(0, len(genome) - 4, bits_per_gene)
+    ] + [[genome[-4:]]]
+
+
+def genome_to_ouput(genome: str, input) -> float:
+    genes = split_genome_into_genes(genome)
+    outp_gate = int(genes[-1][0], 2)
+    return eval(outp_gate, genes, input)
 
 
 def fitness(genome: str, goal: Function) -> float:
@@ -83,15 +91,16 @@ def fitness(genome: str, goal: Function) -> float:
 
 
 def eval(outp_gate, genes, input):
-    val = [None] * 16
+    val: List[Optional[int]] = [None] * 16
     vis = [False] * 16
 
     # Returns True if successful
-    def dfs(node) -> bool:
+    def dfs(node: int) -> bool:
         if vis[node]:
             return val[node] is not None
         vis[node] = True
-        if node == 15: return False
+        if node == 15:
+            return False
         if node < 4:
             val[node] = int(input[node])
             return True
@@ -101,7 +110,7 @@ def eval(outp_gate, genes, input):
         if not dfs(input1) or not dfs(input2):
             return False
         val[node] = not (val[input1] and val[input2])
-        return False
+        return True
 
     if not dfs(outp_gate):  # If the DFS fails
         return -1
@@ -109,9 +118,58 @@ def eval(outp_gate, genes, input):
     return val[outp_gate]
 
 
-def genome_to_ouput(genome: str, input) -> float:
-    genes = split_genome_into_genes(genome)
-    return eval(int(genes[-1][0], 2), genes, input)
+# XOR is AND(NAND, OR)
+class Gate:
+
+    def __init__(self, input1: Optional["Gate"], input2: Optional["Gate"], id: int):
+        self.input1 = input1
+        self.input2 = input2
+        self.id = id
+
+
+inp0 = Gate(None, None, 0)
+inp1 = Gate(None, None, 1)
+inp2 = Gate(None, None, 2)
+inp3 = Gate(None, None, 3)
+
+# NAND(NAND(x, y), x) = not(not(x and y) and x) = (x and y) or not(x) = (not x or y)
+# NAND(NAND(x, y), y) = not(not(x and y) and y) = (x and y) or not(y) = (x or not y)
+# NAND(not x or y, x or not y) = XOR(x, y)
+nand0 = Gate(inp0, inp1, 4)
+s0 = Gate(inp0, nand0, 5)
+s1 = Gate(inp1, nand0, 6)
+xor0 = Gate(s0, s1, 7)
+
+nand1 = Gate(inp2, inp3, 8)
+s2 = Gate(inp2, nand1, 9)
+s3 = Gate(inp3, nand1, 10)
+xor1 = Gate(s2, s3, 11)
+
+nxor0 = Gate(xor0, xor0, 12)
+nxor1 = Gate(xor1, xor1, 13)
+
+total_or = Gate(nxor0, nxor1, 14)
+
+gates = [
+    nand0,
+    s0,
+    s1,
+    xor0,
+    nand1,
+    s2,
+    s3,
+    xor1,
+    nxor0,
+    nxor1,
+    total_or
+]
+
+genes = ''.join([
+    '0' + format(gate.input1.id, '04b') + format(gate.input2.id, '04b') for gate in gates
+]) + format(14, '04b')
+
+print(genes)
+print(fitness(genes, goals[1]))
 
 
 # print(genes_test)

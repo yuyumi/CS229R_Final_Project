@@ -1,10 +1,17 @@
+import asyncio
 import math
 import os
 from datetime import datetime
 
-import numpy as np
 import random
-from typing import Callable, List, Optional
+from typing import Callable, List, Optional, Tuple
+
+USING_MODAL = False
+
+# MODAL CODE
+import modal.aio
+np_image = modal.Image.debian_slim().pip_install("numpy")
+stub = modal.aio.AioStub("fitness-calc")
 
 random.seed(0)
 
@@ -79,17 +86,6 @@ def genome_to_ouput(genome: str, input) -> float:
     return eval(outp_gate, genes, input)
 
 
-def fitness(genome: str, goal: Function) -> float:
-    # Compute losses over all possible inputs
-    fitness = 16
-    for i in range(16):
-        est = genome_to_ouput(genome, format(i, '04b'))
-        actual = goal.eval(format(i, '04b'))
-        fitness -= int(est != actual)
-    fitness /= 16
-    return fitness
-
-
 def eval(outp_gate, genes, input):
     val: List[Optional[int]] = [None] * 16
     vis = [False] * 16
@@ -116,6 +112,22 @@ def eval(outp_gate, genes, input):
         return -1
 
     return val[outp_gate]
+
+
+def fitness(genome: str, goal: Function) -> float:
+    # Compute losses over all possible inputs
+    fitness = 16
+    for i in range(16):
+        est = genome_to_ouput(genome, format(i, '04b'))
+        actual = goal.eval(format(i, '04b'))
+        fitness -= int(est != actual)
+    fitness /= 16
+    return fitness
+
+
+@stub.function()
+def calc_fitness(genomes: List[str], goal: Function) -> List[Tuple[str, float]]:
+    return [(genome, fitness(genome, goal)) for genome in genomes]
 
 
 # XOR is AND(NAND, OR)
@@ -190,15 +202,17 @@ print(fitness(genes, goals[1]))
 # )))
 
 
-def select_elite(pop_fitness, exp_weight=1):
+@stub.function(image=np_image)
+def select_elite(pop_fitness):
     """
     Using the Elite selection method, best individuals
     """
+    import numpy as np
     pop_fitness = sorted(pop_fitness, key=lambda x: x[1], reverse=True)
     pop, fitnesses = zip(*pop_fitness)
     fitnesses = np.array(fitnesses)
 
-    exp_fitnesses = math.e ** (exp_weight * fitnesses)
+    exp_fitnesses = math.e ** (exp_factor * fitnesses)
     cum_exp_fitnesses = np.cumsum(exp_fitnesses)
 
     selected = []
@@ -226,50 +240,63 @@ def mutate(genome: str):
         for i in range(len(genome))
     ])
 
+@stub.local_entrypoint()
+async def main():
+    init_pop = [generate_random_genome() for _ in range(population_size)]
+    init_goal = random.randint(0, 1)
 
-init_pop = [generate_random_genome() for _ in range(population_size)]
-init_goal = random.randint(0, 1)
+    pop = [*init_pop]
+    goal = init_goal
 
-pop = [*init_pop]
-goal = init_goal
+    # Create log name using timestamp
+    time_string = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    log_file = f'logs/modal_log_{time_string}.txt'
+    # If folder doesn't exist create it
+    if not os.path.exists('logs'):
+        os.makedirs('logs')
+    f = open(log_file, 'w+')
 
-# Create log name using timestamp
-time_string = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-log_file = f'logs/log_{time_string}.txt'
-# If folder doesn't exist create it
-if not os.path.exists('logs'):
-    os.makedirs('logs')
-f = open(log_file, 'w+')
+    for g in range(generations):
+        # anotate the population with their fitness
+        if USING_MODAL:
+            CHUNK_SIZE = 2500
+            pop_fitness = sum(
+                await asyncio.gather(
+                    *[calc_fitness.call(pop[i:i + CHUNK_SIZE], goals[goal]) for i in range(0, len(pop), CHUNK_SIZE)]),
+                []
+            )
+        else:
+            pop_fitness = calc_fitness(pop, goals[goal])
 
-for g in range(generations):
-    # anotate the population with their fitness
-    pop_fitness = [(genome, fitness(genome, goals[goal])) for genome in pop]
+        avg_fitness = sum(fitness for genome, fitness in pop_fitness) / len(pop_fitness)
 
-    avg_fitness = sum(fitness for genome, fitness in pop_fitness) / len(pop_fitness)
+        if (g + 1) % log_step == 0:
+            f.write(f'[Generation {g + 1}] Fitness: {avg_fitness} Goal: {goal}\n')
+            print(f'[Generation {g + 1}] Fitness: {avg_fitness} Goal: {goal}')
 
-    if (g + 1) % log_step == 0:
-        f.write(f'[Generation {g + 1}] Fitness: {avg_fitness} Goal: {goal}\n')
-        print(f'[Generation {g + 1}] Fitness: {avg_fitness} Goal: {goal}')
+        selected_pop = await select_elite.call(pop_fitness) if USING_MODAL else select_elite(pop_fitness)
 
-    selected_pop = select_elite(pop_fitness, exp_weight=4)
-
-    # Crossover
-    offspring = []
-    for _ in range(len(pop) // 2):
-        parent1 = random.choice(selected_pop)
-        parent2 = random.choice(selected_pop)
-        while parent2 == parent1:
+        # Crossover
+        offspring = []
+        for _ in range(len(pop) // 2):
+            parent1 = random.choice(selected_pop)
             parent2 = random.choice(selected_pop)
+            while parent2 == parent1:
+                parent2 = random.choice(selected_pop)
 
-        offspring1, offspring2 = crossover(parent1, parent2)
-        offspring.append(offspring1)
-        offspring.append(offspring2)
+            offspring1, offspring2 = crossover(parent1, parent2)
+            offspring.append(offspring1)
+            offspring.append(offspring2)
 
-    # Mutation
-    offspring = [mutate(genome) for genome in offspring]
+        # Mutation
+        offspring = [mutate(genome) for genome in offspring]
 
-    # Update the population for the next generation
-    pop = offspring
+        # Update the population for the next generation
+        pop = offspring
 
-    if change_goal and (g + 1) % goal_change_t == 0:
-        goal = random.randint(0, 1)
+        if change_goal and (g + 1) % goal_change_t == 0:
+            goal = random.randint(0, 1)
+
+
+if __name__ == '__main__':
+    asyncio.run(main())

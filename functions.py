@@ -1,12 +1,17 @@
 import math
+import asyncio
 
 import numpy as np
 import random
-from typing import Callable, List, Optional
+from typing import Callable, List, Optional, Tuple
 from constants import *
 
 BinFunc = Callable[[int, int], int]
 
+# MODAL CODE
+import modal.aio
+np_image = modal.Image.debian_slim().pip_install("numpy")
+stub = modal.aio.AioStub("fitness-calc")
 
 class Function:
 
@@ -74,6 +79,9 @@ def fitness(genome: str, goal: Function) -> float:
     # fitness /= 16
     return 1-(total_losses/(16*BALDWIN_ITERS))
 
+@stub.function()
+def calc_fitness(genomes: List[str], goal: Function) -> List[Tuple[str, float]]:
+    return [(genome, fitness(genome, goal)) for genome in genomes]
 
 def eval(outp_gate, genes, input):
     val: List[Optional[int]] = [None] * 16
@@ -111,7 +119,8 @@ class Gate:
         self.input2 = input2
         self.id = id
 
-def select_elite(pop_fitness, exp_weight=1):
+@stub.function(image=np_image)
+def select_elite(pop_fitness):
     """
     Using the Elite selection method, best individuals
     """
@@ -119,8 +128,7 @@ def select_elite(pop_fitness, exp_weight=1):
     pop, fitnesses = zip(*pop_fitness)
     fitnesses = np.array(fitnesses)
 
-    exp_fitnesses = math.e ** (exp_weight * fitnesses)
-    cum_exp_fitnesses = np.cumsum(exp_fitnesses)
+    cum_exp_fitnesses = np.cumsum(EXP_FACTOR * exp_fitnesses)
 
     selected = []
     for _ in range(GRADUATION_SIZE):

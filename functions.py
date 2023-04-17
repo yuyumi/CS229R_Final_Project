@@ -110,7 +110,7 @@ def eval(outp_gate, genes, input) -> int:
     val: List[Optional[int]] = [None] * 16
     vis = [False] * 16
 
-    # Returns True if successful
+    # Returns True if successfulc
     def dfs(node: int) -> bool:
         if vis[node]:
             return val[node] is not None

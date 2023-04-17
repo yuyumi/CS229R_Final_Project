@@ -1,3 +1,4 @@
+import json
 import math
 import os
 from datetime import datetime
@@ -57,6 +58,15 @@ print(genes)
 print(fitness(genes, goals[1]))
 
 
+def save_checkpoint(pop, goal, gen, time_string):
+    file_name = f'ckpts/run_{time_string}_gen_{gen}.json'
+    with open(file_name, 'w+') as f:
+        json.dump({
+            'pop': pop,
+            'goal': goal,
+            'gen': gen
+        }, f)
+
 @stub.local_entrypoint()
 async def main():
     init_pop = [generate_random_genome() for _ in range(POPULATION_SIZE)]
@@ -67,10 +77,12 @@ async def main():
 
     # Create log name using timestamp
     time_string = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-    log_file = f'logs/modal_log_{time_string}.txt'
+    log_file = f'logs/log_{time_string}.txt'
     # If folder doesn't exist create it
     if not os.path.exists('logs'):
         os.makedirs('logs')
+    if not os.path.exists('ckpts'):
+        os.makedirs('ckpts')
     f = open(log_file, 'w+')
 
     times = []
@@ -119,6 +131,9 @@ async def main():
 
         if CHANGE_GOAL and (g + 1) % GOAL_CHANGE_T == 0:
             goal = random.randint(0, 1)
+
+        if (g + 1) % CHECKPOINT_T == 0:
+            save_checkpoint(pop, goal, g + 1, time_string)
 
         pop = offspring
 

@@ -10,8 +10,10 @@ BinFunc = Callable[[int, int], int]
 
 # MODAL CODE
 import modal.aio
+
 np_image = modal.Image.debian_slim().pip_install("numpy")
 stub = modal.aio.AioStub("fitness-calc")
+
 
 class Function:
 
@@ -44,7 +46,10 @@ goals = [
 
 
 def generate_random_genome() -> str:
-    return ''.join(random.choice('01') for _ in range(BITS_PER_GENOME))
+    def rand_gate():
+        return random.choice('01') + format(np.random.randint(0, 15), '04b') + format(np.random.randint(0, 15), '04b')
+
+    return ''.join([rand_gate() for _ in range(NUM_GATES)]) + format(np.random.randint(0, 15), '04b')
 
 
 def split_genome_into_genes(genome: str) -> list[list[str]]:
@@ -61,29 +66,47 @@ def genes_to_output(genes: list[list[str]], input) -> float:
     return eval(outp_gate, genes, input)
 
 
-def fitness(genome: str, goal: Function) -> float:
+def fitness(genome: str, goal: Function, balwind_iters: int = 10) -> float:
     # Compute losses over all possible inputs
     # fitness = 16
-    total_losses= 0
-    for i in range(16):
-        actual = goal.eval(format(i, '04b'))
-        for _ in range(BALDWIN_ITERS):
-            genes = split_genome_into_genes(genome)
-            for j in range(len(genes)):
-                if genes[j][0] == '1':
-                    genes[j][1] = format(np.random.randint(0, 16), '04b')
-                    genes[j][2] = format(np.random.randint(0, 16), '04b')
-            est = genes_to_output(genes, format(i, '04b'))
-            total_losses += int(est != actual)
-        # fitness -= int(est != actual)
-    # fitness /= 16
-    return 1-(total_losses/(16*BALDWIN_ITERS))
+    target = [goal.eval(format(i, '04b')) for i in range(16)]
+
+    def genome_fitness(genes):
+        outp = [genes_to_output(genes, format(i, '04b')) for i in range(16)]
+        # Average of target = outp
+        scores = [int(a == b) for a, b in zip(target, outp)]
+        return sum(scores) / len(scores)
+
+    curr_genes = split_genome_into_genes(genome)
+    scores = []
+    for _ in range(balwind_iters):
+        scores.append(genome_fitness(curr_genes))
+
+        # Randomize after so that the first iteration is the regular gene
+        for j in range(NUM_GATES):
+            if curr_genes[j][0] == '1':
+                curr_genes[j][1] = format(np.random.randint(0, 15), '04b')
+                curr_genes[j][2] = format(np.random.randint(0, 15), '04b')
+
+    return max(scores)
+
 
 @stub.function()
-def calc_fitness(genomes: List[str], goal: Function) -> List[Tuple[str, float]]:
-    return [(genome, fitness(genome, goal)) for genome in genomes]
+def calc_fitness(genomes: List[str], goal: Function, balwind_iters: int = BALDWIN_ITERS) -> List[Tuple[str, float]]:
+    return [(genome, fitness(genome, goal, balwind_iters)) for genome in genomes]
 
-def eval(outp_gate, genes, input):
+
+def percent_maleable(genomes: List[str]) -> float:
+    total_maleable_gates = 0
+    for genome in genomes:
+        genes = split_genome_into_genes(genome)
+        for gene in genes[:NUM_GATES]:
+            if gene[0] == '1':
+                total_maleable_gates += 1
+
+    return total_maleable_gates / (len(genomes) * NUM_GATES)
+
+def eval(outp_gate, genes, input) -> int:
     val: List[Optional[int]] = [None] * 16
     vis = [False] * 16
 
@@ -102,7 +125,7 @@ def eval(outp_gate, genes, input):
         input2 = int(genes[node - 4][2], 2)
         if not dfs(input1) or not dfs(input2):
             return False
-        val[node] = not (val[input1] and val[input2])
+        val[node] = int(not (val[input1] and val[input2]))
         return True
 
     if not dfs(outp_gate):  # If the DFS fails
@@ -119,6 +142,7 @@ class Gate:
         self.input2 = input2
         self.id = id
 
+
 @stub.function(image=np_image)
 def select_elite(pop_fitness):
     """
@@ -128,7 +152,8 @@ def select_elite(pop_fitness):
     pop, fitnesses = zip(*pop_fitness)
     fitnesses = np.array(fitnesses)
 
-    cum_exp_fitnesses = np.cumsum(math.e ** (fitnesses * EXP_FACTOR))
+    exp_fitnesses = math.e ** (fitnesses * EXP_FACTOR)
+    cum_exp_fitnesses = np.cumsum(exp_fitnesses)
 
     selected = []
     for _ in range(GRADUATION_SIZE):

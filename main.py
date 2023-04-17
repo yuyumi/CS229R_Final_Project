@@ -76,7 +76,6 @@ async def main():
     for g in range(GENERATIONS):
         # anotate the population with their fitness
         if USING_MODAL:
-            CHUNK_SIZE = 2500
             pop_fitness = sum(
                 await asyncio.gather(
                     *[calc_fitness.call(pop[i:i + CHUNK_SIZE], goals[goal]) for i in range(0, len(pop), CHUNK_SIZE)]),
@@ -88,8 +87,14 @@ async def main():
         avg_fitness = sum(fitness for genome, fitness in pop_fitness) / len(pop_fitness)
 
         if (g + 1) % LOG_STEP == 0:
-            f.write(f'[Generation {g + 1}] Fitness: {avg_fitness} Goal: {goal}\n')
-            print(f'[Generation {g + 1}] Fitness: {avg_fitness} Goal: {goal}')
+            non_baldwin_fitness = calc_fitness(pop, goals[goal], 1)
+            avg_baldwin_fitness = sum(fitness for genome, fitness in non_baldwin_fitness) / len(non_baldwin_fitness)
+
+            pm = percent_maleable(pop)
+
+            report = f'[Generation {g + 1}] Fitness: {avg_fitness} No-Baldwin Fitness: {avg_baldwin_fitness} Maleable: {pm * 100}% Goal: {goal}'
+            f.write(report + "\n")
+            print(report)
 
         selected_pop = await select_elite.call(pop_fitness) if USING_MODAL else select_elite(pop_fitness)
 
@@ -100,13 +105,12 @@ async def main():
             parent2 = random.choice(selected_pop)
             while parent2 == parent1:
                 parent2 = random.choice(selected_pop)
+            offspring.extend(crossover(parent1, parent2))
 
         # Mutation
         offspring = [mutate(genome) for genome in offspring]
 
-        offspring1, offspring2 = crossover(parent1, parent2)
-        offspring.append(offspring1)
-        offspring.append(offspring2)
+        pop = offspring
 
         if CHANGE_GOAL and (g + 1) % GOAL_CHANGE_T == 0:
             goal = random.randint(0, 1)

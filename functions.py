@@ -143,7 +143,6 @@ class Gate:
         self.id = id
 
 
-@stub.function(image=np_image)
 def select_elite(pop_fitness):
     """
     Using the Elite selection method, best individuals

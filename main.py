@@ -73,7 +73,10 @@ async def main():
         os.makedirs('logs')
     f = open(log_file, 'w+')
 
+    times = []
+
     for g in range(GENERATIONS):
+        start_t = datetime.now()
         # anotate the population with their fitness
         if USING_MODAL:
             pop_fitness = sum(
@@ -84,19 +87,7 @@ async def main():
         else:
             pop_fitness = calc_fitness(pop, goals[goal])
 
-        avg_fitness = sum(fitness for genome, fitness in pop_fitness) / len(pop_fitness)
-
-        if (g + 1) % LOG_STEP == 0:
-            non_baldwin_fitness = calc_fitness(pop, goals[goal], 1)
-            avg_baldwin_fitness = sum(fitness for genome, fitness in non_baldwin_fitness) / len(non_baldwin_fitness)
-
-            pm = percent_maleable(pop)
-
-            report = f'[Generation {g + 1}] Fitness: {avg_fitness} No-Baldwin Fitness: {avg_baldwin_fitness} Maleable: {pm * 100}% Goal: {goal}'
-            f.write(report + "\n")
-            print(report)
-
-        selected_pop = await select_elite.call(pop_fitness) if USING_MODAL else select_elite(pop_fitness)
+        selected_pop = select_elite(pop_fitness)
 
         # Crossover
         offspring = []
@@ -110,10 +101,26 @@ async def main():
         # Mutation
         offspring = [mutate(genome) for genome in offspring]
 
-        pop = offspring
+        end_t = datetime.now()
+        times.append((end_t - start_t).total_seconds())
+
+        if (g + 1) % LOG_STEP == 0:
+            avg_fitness = sum(fitness for genome, fitness in pop_fitness) / len(pop_fitness)
+            non_baldwin_fitness = calc_fitness(pop, goals[goal], 1)
+            avg_baldwin_fitness = sum(fitness for genome, fitness in non_baldwin_fitness) / len(non_baldwin_fitness)
+
+            pm = percent_maleable(pop)
+
+            avg_time = sum(times[-LOG_STEP:]) / LOG_STEP
+
+            report = f'[Generation {g + 1}] Fitness: {avg_fitness} No-Baldwin Fitness: {avg_baldwin_fitness} Maleable: {pm * 100}% Goal: {goal} Times: {avg_time}s'
+            f.write(report + "\n")
+            print(report)
 
         if CHANGE_GOAL and (g + 1) % GOAL_CHANGE_T == 0:
             goal = random.randint(0, 1)
+
+        pop = offspring
 
 
 if __name__ == '__main__':

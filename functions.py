@@ -1,9 +1,9 @@
 import math
-import asyncio
-
-import numpy as np
 import random
 from typing import Callable, List, Optional, Tuple
+
+import numpy as np
+
 from constants import *
 
 BinFunc = Callable[[int, int], int]
@@ -128,7 +128,7 @@ def select_elite(pop_fitness):
     pop, fitnesses = zip(*pop_fitness)
     fitnesses = np.array(fitnesses)
 
-    cum_exp_fitnesses = np.cumsum(EXP_FACTOR * exp_fitnesses)
+    cum_exp_fitnesses = np.cumsum(math.e ** (fitnesses * EXP_FACTOR))
 
     selected = []
     for _ in range(GRADUATION_SIZE):

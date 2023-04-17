@@ -56,6 +56,7 @@ genes = ''.join([
 print(genes)
 print(fitness(genes, goals[1]))
 
+
 @stub.local_entrypoint()
 async def main():
     init_pop = [generate_random_genome() for _ in range(POPULATION_SIZE)]
@@ -86,7 +87,7 @@ async def main():
 
         avg_fitness = sum(fitness for genome, fitness in pop_fitness) / len(pop_fitness)
 
-        if (g + 1) % log_step == 0:
+        if (g + 1) % LOG_STEP == 0:
             f.write(f'[Generation {g + 1}] Fitness: {avg_fitness} Goal: {goal}\n')
             print(f'[Generation {g + 1}] Fitness: {avg_fitness} Goal: {goal}')
 
@@ -99,7 +100,7 @@ async def main():
             parent2 = random.choice(selected_pop)
             while parent2 == parent1:
                 parent2 = random.choice(selected_pop)
-        
+
         # Mutation
         offspring = [mutate(genome) for genome in offspring]
 
@@ -107,8 +108,9 @@ async def main():
         offspring.append(offspring1)
         offspring.append(offspring2)
 
-        if change_goal and (g + 1) % goal_change_t == 0:
+        if CHANGE_GOAL and (g + 1) % GOAL_CHANGE_T == 0:
             goal = random.randint(0, 1)
+
 
 if __name__ == '__main__':
     asyncio.run(main())

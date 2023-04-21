@@ -3,7 +3,7 @@ import math
 import os
 from datetime import datetime
 import asyncio
-import modal.aio
+import argparse
 
 import numpy as np
 import random
@@ -54,12 +54,12 @@ genes = ''.join([
     '0' + format(gate.input1.id, '04b') + format(gate.input2.id, '04b') for gate in gates
 ]) + format(14, '04b')
 
-print(genes)
-print(fitness(genes, goals[1]))
+# print(genes)
+# print(fitness(genes, goals[1]))
 
 
-def save_checkpoint(pop, goal, gen, time_string):
-    file_name = f'ckpts/run_{time_string}_gen_{gen}.json'
+def save_checkpoint(pop, goal, gen, run_name):
+    file_name = f'ckpts/{time_string}_gen_{gen}.json'
     with open(file_name, 'w+') as f:
         json.dump({
             'pop': pop,
@@ -67,37 +67,61 @@ def save_checkpoint(pop, goal, gen, time_string):
             'gen': gen
         }, f)
 
-@stub.local_entrypoint()
 async def main():
-    init_pop = [generate_random_genome() for _ in range(POPULATION_SIZE)]
-    init_goal = random.randint(0, 1)
-
-    pop = [*init_pop]
-    goal = init_goal
-
-    # Create log name using timestamp
-    time_string = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-    log_file = f'logs/log_{time_string}.txt'
+    global CHANGE_GOAL
+    global BALDWIN_ITERS
+    
     # If folder doesn't exist create it
     if not os.path.exists('logs'):
         os.makedirs('logs')
     if not os.path.exists('ckpts'):
         os.makedirs('ckpts')
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--checkpoint', type=str, help='Path to checkpoint file')
+    parser.add_argument('--name', type=str, help='Name of run')
+    parser.add_argument('--baldwin', type=str, help='Number of baldwin iters')
+    parser.add_argument('--change_goal', type=bool, help='Whether to used varying goals')
+    args = parser.parse_args()
+
+    if args.baldwin:
+        BALDWIN_ITERS = int(args.baldwin)
+        print(f'Using {BALDWIN_ITERS} baldwin iterations')
+    
+    if args.change_goal:
+        CHANGE_GOAL = True
+    print("Change Goal:", CHANGE_GOAL)
+
+    if args.checkpoint:
+        with open(args.checkpoint, 'r') as f:
+            checkpoint_data = json.load(f)
+        pop = checkpoint_data['pop']
+        goal = checkpoint_data['goal']
+        start_gen = checkpoint_data['gen']
+
+        fname = args.checkpoint
+    else:
+        init_pop = [generate_random_genome() for _ in range(POPULATION_SIZE)]
+        init_goal = random.randint(0, 1) if CHANGE_GOAL else 0
+        pop = [*init_pop]
+        goal = init_goal
+        start_gen = 0
+
+    # Create log name using timestamp
+    run_name = args.name or datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    log_file = f'logs/log_{run_name}.txt'
+    # assert that the file doesn't already exist
+    # Assert that the log file doesn't already exist
+    assert not os.path.exists(log_file), f"Log file {log_file} already exists"
+
     f = open(log_file, 'w+')
 
     times = []
 
-    for g in range(GENERATIONS):
+    for g in range(start_gen, GENERATIONS):
         start_t = datetime.now()
         # anotate the population with their fitness
-        if USING_MODAL:
-            pop_fitness = sum(
-                await asyncio.gather(
-                    *[calc_fitness.call(pop[i:i + CHUNK_SIZE], goals[goal]) for i in range(0, len(pop), CHUNK_SIZE)]),
-                []
-            )
-        else:
-            pop_fitness = calc_fitness(pop, goals[goal])
+        pop_fitness = calc_fitness(pop, goals[goal])
 
         selected_pop = select_elite(pop_fitness)
 
@@ -133,7 +157,7 @@ async def main():
             goal = random.randint(0, 1)
 
         if (g + 1) % CHECKPOINT_T == 0:
-            save_checkpoint(pop, goal, g + 1, time_string)
+            save_checkpoint(pop, goal, g + 1, run_name)
 
         pop = offspring
 

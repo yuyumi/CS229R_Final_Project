@@ -8,13 +8,6 @@ from constants import *
 
 BinFunc = Callable[[int, int], int]
 
-# MODAL CODE
-import modal.aio
-
-np_image = modal.Image.debian_slim().pip_install("numpy")
-stub = modal.aio.AioStub("fitness-calc")
-
-
 class Function:
 
     def __init__(self, f: BinFunc, g: BinFunc, h: BinFunc):
@@ -91,7 +84,6 @@ def fitness(genome: str, goal: Function, balwind_iters: int = 10) -> float:
     return max(scores)
 
 
-@stub.function()
 def calc_fitness(genomes: List[str], goal: Function, balwind_iters: int = BALDWIN_ITERS) -> List[Tuple[str, float]]:
     return [(genome, fitness(genome, goal, balwind_iters)) for genome in genomes]
 

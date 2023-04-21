@@ -81,7 +81,7 @@ async def main():
     parser.add_argument('--checkpoint', type=str, help='Path to checkpoint file')
     parser.add_argument('--name', type=str, help='Name of run')
     parser.add_argument('--baldwin', type=str, help='Number of baldwin iters')
-    parser.add_argument('--change_goal', type=bool, help='Whether to used varying goals')
+    parser.add_argument('--change-goal', type=bool, help='Whether to used varying goals')
     args = parser.parse_args()
 
     if args.baldwin:
@@ -121,7 +121,7 @@ async def main():
     for g in range(start_gen, GENERATIONS):
         start_t = datetime.now()
         # anotate the population with their fitness
-        pop_fitness = calc_fitness(pop, goals[goal])
+        pop_fitness = calc_fitness(pop, goals[goal], BALDWIN_ITERS)
 
         selected_pop = select_elite(pop_fitness)
 

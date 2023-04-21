@@ -84,7 +84,7 @@ def fitness(genome: str, goal: Function, balwind_iters: int = 10) -> float:
     return max(scores)
 
 
-def calc_fitness(genomes: List[str], goal: Function, balwind_iters: int = BALDWIN_ITERS) -> List[Tuple[str, float]]:
+def calc_fitness(genomes: List[str], goal: Function, balwind_iters) -> List[Tuple[str, float]]:
     return [(genome, fitness(genome, goal, balwind_iters)) for genome in genomes]
 
 

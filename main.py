@@ -59,13 +59,13 @@ genes = ''.join([
 
 
 def save_checkpoint(pop, goal, gen, run_name):
-    file_name = f'ckpts/{time_string}_gen_{gen}.json'
-    with open(file_name, 'w+') as f:
+    file_name = f'ckpts/{run_name}_gen_{gen}.json'
+    with open(file_name, 'w+', encoding='utf-8') as save_file:
         json.dump({
             'pop': pop,
             'goal': goal,
             'gen': gen
-        }, f)
+        }, save_file)
 
 async def main():
     global CHANGE_GOAL
@@ -87,7 +87,7 @@ async def main():
     if args.baldwin:
         BALDWIN_ITERS = int(args.baldwin)
         print(f'Using {BALDWIN_ITERS} baldwin iterations')
-    
+        
     if args.change_goal:
         CHANGE_GOAL = True
     print("Change Goal:", CHANGE_GOAL)

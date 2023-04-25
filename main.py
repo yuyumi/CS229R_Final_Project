@@ -1,15 +1,14 @@
-import json
-import math
-import os
-from datetime import datetime
-import asyncio
 import argparse
-
-import numpy as np
+import asyncio
+import json
+import os
 import random
-from typing import Callable, List, Optional
-from constants import *
-from functions import *
+from datetime import datetime
+
+from constants import (CHECKPOINT_T, GENERATIONS, GOAL_CHANGE_T, LOG_STEP,
+                       POPULATION_SIZE)
+from functions import (Gate, calc_fitness, crossover, generate_random_genome,
+                       goals, mutate, percent_maleable, select_elite)
 
 random.seed(0)
 
@@ -54,6 +53,7 @@ genes = ''.join([
     '0' + format(gate.input1.id, '04b') + format(gate.input2.id, '04b') for gate in gates
 ]) + format(14, '04b')
 
+
 # print(genes)
 # print(fitness(genes, goals[1]))
 
@@ -67,10 +67,11 @@ def save_checkpoint(pop, goal, gen, run_name):
             'gen': gen
         }, save_file)
 
+
 async def main():
     global CHANGE_GOAL
     global BALDWIN_ITERS
-    
+
     # If folder doesn't exist create it
     if not os.path.exists('logs'):
         os.makedirs('logs')
@@ -87,7 +88,7 @@ async def main():
     if args.baldwin:
         BALDWIN_ITERS = int(args.baldwin)
         print(f'Using {BALDWIN_ITERS} baldwin iterations')
-        
+
     if args.change_goal:
         CHANGE_GOAL = True
     print("Change Goal:", CHANGE_GOAL)

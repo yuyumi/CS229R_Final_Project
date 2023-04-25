@@ -122,7 +122,7 @@ def drawaverage():
     # plt.plot(data[window_size - 1:, 0], maleable_moving_avg, label='Plasticity (Moving Avg)', color='#00aa00')
 
 
-    plt.title("Fixed Goal Baldwin Fitness over Generations")
+    plt.title("Varying Goal Baldwin Fitness (beta=10) over Generations")
 
     plt.xlabel('Generations')
     plt.ylabel('Fitness')

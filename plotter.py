@@ -8,6 +8,8 @@ import numpy as np
 
 # lines = data.split('\n')
 
+BETA = 5
+
 # Format:
 format = re.compile(r'\[Generation (\d+)\] Fitness: (\d+\.\d+) No-Baldwin Fitness: (\d+\.\d+) Maleable: (\d+\.\d+)% Goal: (\d) Times: (\d+\.\d+)s')
 # format = re.compile(r'\[Generation (\d+)\] Fitness: (\d+\.\d+) Goal: (\d)')
@@ -21,7 +23,7 @@ data1_map = {}
 
 
 for i in range(1, 11):
-    FILE = f'aws/logs/log_baldwin_fvg_{i}.txt'
+    FILE = f'aws/logs/log_baldwin_{BETA}_fvg_{i}.txt'
     with open(FILE, 'r', encoding='utf-8') as f:
         data = f.read()
 
@@ -64,7 +66,7 @@ def drawall():
         # plt.plot(data[window_size - 1:, 0], maleable_moving_avg, label='Plasticity (Moving Avg)', color='#00aa00')
 
 
-        plt.title("Fixed Goal Baldwin Fitness over Generations")
+        plt.title(f"Varying Goal Baldwin Fitness (beta={BETA}) over Generations")
 
         plt.xlabel('Generations')
         plt.ylabel('Fitness')
@@ -80,8 +82,8 @@ def drawall():
 
         # UNCOMMENT THESE TO HAVE A SEPARATE PLOT FOR EACH RUN
         # Save the plot to the specified file
-        # plt.savefig(f"aws/plots/baldwin_fvg_{i}.png", bbox_inches="tight")
-        # plt.clf()  # Clear the current figure after saving the plot
+        plt.savefig(f"aws/plots/baldwin_{BETA}_fvg_{i}.png", bbox_inches="tight")
+        plt.clf()  # Clear the current figure after saving the plot
 
 def drawaverage():
     # goal0_data = np.array([d for d in data if d[4] == 0 and d[0] % 100 == 0], dtype=float)
@@ -122,7 +124,7 @@ def drawaverage():
     # plt.plot(data[window_size - 1:, 0], maleable_moving_avg, label='Plasticity (Moving Avg)', color='#00aa00')
 
 
-    plt.title("Varying Goal Baldwin Fitness (beta=10) over Generations")
+    plt.title(f"Varying Goal Baldwin Fitness (beta={BETA}) over Generations")
 
     plt.xlabel('Generations')
     plt.ylabel('Fitness')
@@ -141,8 +143,8 @@ def drawaverage():
     # plt.savefig(f"aws/plots/baldwin_fvg_{i}.png", bbox_inches="tight")
     # plt.clf()  # Clear the current figure after saving the plot
 
-# drawall()
-drawaverage()
+drawall()
+# drawaverage()
 
 # UNCOMMENT THIS TO HAVE A PLOT FOR ALL RUNS
-plt.savefig("aws/plots/baldwin_fvg.png", bbox_inches="tight")
+# plt.savefig("aws/plots/baldwin_{BETA}_fvg.png", bbox_inches="tight")

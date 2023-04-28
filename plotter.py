@@ -143,8 +143,8 @@ def drawaverage():
     # plt.savefig(f"aws/plots/baldwin_fvg_{i}.png", bbox_inches="tight")
     # plt.clf()  # Clear the current figure after saving the plot
 
-drawall()
-# drawaverage()
+# drawall()
+drawaverage()
 
 # UNCOMMENT THIS TO HAVE A PLOT FOR ALL RUNS
-# plt.savefig("aws/plots/baldwin_{BETA}_fvg.png", bbox_inches="tight")
+plt.savefig(f"aws/plots/baldwin_{BETA}_fvg.png", bbox_inches="tight")

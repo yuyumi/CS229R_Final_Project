@@ -1,0 +1,1 @@
+for i in {1..10}; do; scp ubuntu@ec2-3-87-13-166.compute-1.amazonaws.com:~/CS229R_Final_Project/logs/log_fvg_$i.txt aws/logs; done;

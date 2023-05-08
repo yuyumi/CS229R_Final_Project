@@ -1,3 +1,4 @@
+import csv
 import re
 import matplotlib.pyplot as plt
 import numpy as np
@@ -5,19 +6,18 @@ import numpy as np
 import sys
 
 if len(sys.argv) < 3:
-    print("Usage: python plotter.py <beta> <change_goal>")
+    print("Usage: python plotter.py <beta> <change_goal> <?generations>")
     exit(1)
 
 BETA = int(sys.argv[1])
 CHANGE_GOAL = bool(int(sys.argv[2]))
 
+GENERATIONS = int(sys.argv[3]) if len(sys.argv) > 3 else 30000
+
 prefix = f'baldwin_{BETA}_' if BETA > 1 else ''
 goal = f'fvg' if CHANGE_GOAL else 'fixed'
 
-# Format:
-format = re.compile(r'\[Generation (\d+)\] Fitness: (\d+\.\d+) No-Baldwin Fitness: (\d+\.\d+) Maleable: (\d+\.\d+)% Goal: (\d) Times: (\d+\.\d+)s')
-
-header = ['Generation', 'Fitness', 'Pure Fitness', '% Maleable', 'Goal', 'Time']
+header = ['Generation', 'G1 Baldwin Fitness', 'G1 Fitness', 'G2 Baldwin Fitness', 'G2 Fitness', '% Plasticity']
 
 data_map: dict[int, list] = {}
 data0_map = {}
@@ -25,26 +25,20 @@ data1_map = {}
 
 # LOAD THE DATA
 for i in range(1, 11):
-    FILE = f'aws/logs/log_{prefix}{goal}_{i}.txt'
+    FILE = f'aws/data/{prefix}{goal}_{i}.csv'
     with open(FILE, 'r', encoding='utf-8') as f:
-        data = f.read()
-
-    lines = data.split('\n')
-    data = []
-    for line in lines:
-        match = format.match(line)
-        if match:
-            data.append(tuple(map(float, match.groups())))
-
-    data = [d for d in data if d[0] <= 30000]
+        reader = csv.reader(f)
+        data_headers = next(reader)
+        assert all(h1 == h2  for h1, h2 in zip(data_headers, header))
+        data = [list(map(lambda x: 0 if x == '' else float(x), list(d))) for d in reader if float(d[0]) <= GENERATIONS]
 
     # Only where Goal is 0
-    goal0_data = np.array([d for d in data if d[4] == 0 and d[0] % 100 == 0], dtype=float)
+    goal0_data = np.array(data, dtype=float)
     # goal0_data = np.array([d for d in data if d[2] == 0 and d[0] % 100 == 0], dtype=float)
     data0_map[i] = goal0_data
 
     if CHANGE_GOAL:
-        goal1_data = np.array([d for d in data if d[4] == 1 and d[0] % 100 == 0], dtype=float)
+        goal1_data = np.array(data, dtype=float)
         # goal1_data = np.array([d for d in data if d[2] == 1 and d[0] % 100 == 0], dtype=float)
         data1_map[i] = goal1_data
 
@@ -70,15 +64,15 @@ def drawall():
 
         if CHANGE_GOAL:
             if BETA > 1:
-                plt.plot(goal1_data[:, 0], goal1_data[:, 1], label='Baldwin G2', color='#0000ff80')
-            plt.plot(goal1_data[:, 0], goal1_data[:, 2], label='G2', color='#0000ff40'if BETA > 1 else "#0000ff80")
+                plt.plot(goal1_data[:, 0], goal1_data[:, 3], label='Baldwin G2', color='#0000ff80')
+            plt.plot(goal1_data[:, 0], goal1_data[:, 4], label='G2', color='#0000ff40'if BETA > 1 else "#0000ff80")
 
         if BETA > 1:
             window_size = 10  # Adjust this value for the desired moving average window size
-            maleable_moving_avg = moving_average(data[:, 3] / 100, window_size)
-            plt.plot(data[window_size - 1:, 0], maleable_moving_avg, label='Plasticity (Moving Avg)', color='#00aa00')
+            # maleable_moving_avg = moving_average(data[:, 3] / 100, window_size)
+            plt.plot(data[:, 0], data[:, 5], label='Plasticity', color='#00b010')
 
-        plt.title(TITLE)
+        plt.title(TITLE, pad=20)
 
         plt.xlabel('Generations')
         plt.ylabel('Fitness')
@@ -112,19 +106,17 @@ def drawaverage():
     sorted_gens = sorted(list(gen_data.keys()))
                 
     avg0s = [
-        [gen, np.average([d[1] for d in gen_data[gen] if d[4] == 0]), np.average([d[2] for d in gen_data[gen] if d[4] == 0])]
+        [gen, np.average([d[1] for d in gen_data[gen]]), np.average([d[2] for d in gen_data[gen]])]
         for gen in sorted_gens
-        if any(d[4] == 0 for d in gen_data[gen])
     ]
     if CHANGE_GOAL:
         avg1s = [
-            [gen, np.average([d[1] for d in gen_data[gen] if d[4] == 1]), np.average([d[2] for d in gen_data[gen] if d[4] == 1])]
+            [gen, np.average([d[3] for d in gen_data[gen]]), np.average([d[4] for d in gen_data[gen]])]
             for gen in sorted_gens
-            if any(d[4] == 1 for d in gen_data[gen])
         ]
     if BETA > 1:
         maleables = [
-            [gen, np.average([d[3] for d in gen_data[gen]])]
+            [gen, np.average([d[5] for d in gen_data[gen]])]
             for gen in sorted_gens
         ]
 
@@ -137,31 +129,33 @@ def drawaverage():
     window_size = 20  # Adjust this value for the desired moving average window size
 
     if BETA > 1:
-        plt.plot(goal0_data[window_size - 1:, 0], moving_average(goal0_data[:, 1], window_size), label='Baldwin G1', color='#ff000080')
-    plt.plot(goal0_data[window_size - 1:, 0], moving_average(goal0_data[:, 2], window_size), label='G1', color='#ff000040' if BETA > 1 else "#ff000080")
+        plt.plot(goal0_data[:, 0], goal0_data[:, 1], label='Baldwin G1', color='#ff000080')
+    plt.plot(goal0_data[:, 0], goal0_data[:, 2], label='G1', color='#ff000040' if BETA > 1 else "#ff000080")
     
     if CHANGE_GOAL:
         if BETA > 1:
-            plt.plot(goal1_data[window_size - 1:, 0], moving_average(goal1_data[:, 1], window_size), label='Baldwin G2', color='#0000ff80')
-        plt.plot(goal1_data[window_size - 1:, 0], moving_average(goal1_data[:, 2], window_size), label='G2', color='#0000ff40'if BETA > 1 else "#0000ff80")
+            plt.plot(goal1_data[:, 0], goal1_data[:, 1], label='Baldwin G2', color='#0000ff80')
+        plt.plot(goal1_data[:, 0], goal1_data[:, 2], label='G2', color='#0000ff40'if BETA > 1 else "#0000ff80")
 
-    if BETA > 1:
-        plt.plot(maleable_data[window_size - 1:, 0], moving_average(maleable_data[:, 1] / 100, window_size), label='Plasticity (Moving Avg)', color='#00aa00')
+    # if BETA > 1:
+    #     plt.plot(maleable_data[:, 0], maleable_data[:, 1], label='Plasticity', color='#00b010')
 
 
-    plt.title('Average ' + TITLE)
+    plt.title('Average ' + TITLE, pad=20)
 
     plt.xlabel('Generations')
     plt.ylabel('Fitness')
 
     plt.legend()
     # Move the legend to the right of the plot
-    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+
+    # Put legend on inside bottom right
+    # plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     # Increase the space to the right of the plot to accommodate the legend
     plt.subplots_adjust(right=0.75)
 
     # Set y-axis limits from 0 to 1
-    plt.ylim(0, 1)
+    plt.ylim(0.6, 1)
 
     # Save the plot to the specified file
     plt.savefig(f"aws/plots/{prefix}{goal}.png", bbox_inches="tight")
